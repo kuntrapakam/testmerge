@@ -1,0 +1,53 @@
+name: Back Merge Release to Maintain Branch Sync
+
+on:
+  pull_request:
+    types: [closed]
+    branches:
+      - main
+
+jobs:
+  back-merge:
+    if: |
+      github.event.pull_request.merged == true &&
+      startsWith(github.event.pull_request.head.ref, 'release/')
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+      pull-requests: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Configure Git
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+
+      - name: Set variables
+        run: |
+          echo "RELEASE_BRANCH=${{ github.event.pull_request.head.ref }}" >> $GITHUB_ENV
+
+      # ----------------------------------------------------
+      # Merge main → release/*
+      # ----------------------------------------------------
+      - name: Merge main into release branch
+        run: |
+          git checkout "$RELEASE_BRANCH"
+          git pull origin "$RELEASE_BRANCH"
+          git merge --no-ff main -m "chore: back-merge main into $RELEASE_BRANCH"
+          git push origin "$RELEASE_BRANCH"
+
+      # ----------------------------------------------------
+      # Merge release/* → develop
+      # ----------------------------------------------------
+      - name: Merge release branch into develop
+        run: |
+          git checkout develop
+          git pull origin develop
+          git merge --no-ff "$RELEASE_BRANCH" -m "chore: merge $RELEASE_BRANCH into develop"
+          git push origin develop
